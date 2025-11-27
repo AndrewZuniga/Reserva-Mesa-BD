@@ -31,7 +31,7 @@ class ReservaForm(tk.Frame):
 
         tk.Label(self, text="Fecha y Hora:", bg="#f4f4f4", anchor="w").pack(fill=tk.X)
         f_hora = tk.Frame(self, bg="#f4f4f4"); f_hora.pack(fill=tk.X)
-        self.entry_fecha = DateEntry(f_hora, width=12, date_pattern='yyyy-mm-dd')
+        self.entry_fecha = DateEntry(f_hora, width=12, date_pattern='yyyy-mm-dd',state="readonly")
         self.entry_fecha.pack(side=tk.LEFT)
         self.spin_hora = tk.Spinbox(f_hora, from_=8, to=22, width=3); self.spin_hora.pack(side=tk.LEFT)
         tk.Label(f_hora, text=":", bg="#f4f4f4").pack(side=tk.LEFT)

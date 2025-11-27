@@ -22,7 +22,9 @@ class MainWindow:
     def run(self): self.root.mainloop()
 
     def procesar_guardado(self, nombre_cli, n_personas, fecha, hora, minuto, indices_mesa, nombre_emp):
-        if not nombre_cli or not indices_mesa: return messagebox.showerror("Error", "Faltan datos")
+        # 1. Validaciones
+        if not nombre_cli or not indices_mesa: return messagebox.showerror("Error", "Faltan datos (Cliente o Mesas)")
+        
         try:
             dt = datetime(fecha.year, fecha.month, fecha.day, int(hora), int(minuto))
             if not self.modo_edicion and dt < datetime.now(): return messagebox.showerror("Error", "Fecha pasada")
@@ -34,27 +36,56 @@ class MainWindow:
 
         if cap_total < pax: return messagebox.showerror("Capacidad", "Mesas insuficientes")
 
+        ids_mesas_seleccionadas = [self.form.mesas_actuales[i]['id'] for i in indices_mesa]
+        
+        # Fecha que queremos reservar
+        try:
+            dt_intento = datetime(fecha.year, fecha.month, fecha.day, int(hora), int(minuto))
+        except: return # Ya validado arriba
+        
+        # ¿Estamos editando?
+        ignorar_id = self.id_reserva_seleccionada if self.modo_edicion else None
+        
+        # Preguntar al controlador
+        mesas_ocupadas = ReservaController.verificar_conflicto_mesas(dt_intento, ids_mesas_seleccionadas, ignorar_id)
+        
+        if mesas_ocupadas:
+            nombres = ", ".join(mesas_ocupadas)
+            messagebox.showerror("Conflicto de Reserva", 
+                                 f"IMPOSIBLE GUARDAR.\n\nLas siguientes mesas ya están ocupadas o reservadas en ese horario:\n👉 {nombres}\n\nPor favor seleccione otras mesas o cambie la hora.")
+            return
+
+        # 2. Datos
         id_cli = self.form.clientes_map[nombre_cli]
         id_emp = self.form.empleados_map.get(nombre_emp)
-        id_pol = ReservaController.calcular_politica(pax, 1)
+        id_pol = ReservaController.calcular_politica(pax, 1) # 1=Pendiente
 
-        # NOMBRES NUEVOS EN QUERIES
-        if self.modo_edicion:
-            sql = "UPDATE SGR_T_Reserva SET fechareserva=?, Npersonas=?, idCliente=?, idEmpleado=?, idPolitica=?, idEstadoreserva=1 WHERE idReserva=?"
-            DatabaseManager.run_query(sql, (dt, pax, id_cli, id_emp, id_pol, self.id_reserva_seleccionada), commit=True)
-            DatabaseManager.run_query("DELETE FROM SGR_T_DetalleReserva WHERE idReserva=?", (self.id_reserva_seleccionada,), commit=True)
-            id_res = self.id_reserva_seleccionada
-        else:
-            sql = """SET NOCOUNT ON; INSERT INTO SGR_T_Reserva (fechareserva, Npersonas, idCliente, idEmpleado, idEstadoreserva, idPolitica, idRestaurante)
-                     VALUES (?, ?, ?, ?, 1, ?, ?); SELECT SCOPE_IDENTITY();"""
-            id_res = DatabaseManager.run_query(sql, (dt, pax, id_cli, id_emp, id_pol, ID_RESTAURANTE_ACTUAL), commit=True)
+        # 3. SQL Transaction
+        try:
+            if self.modo_edicion:
+                sql = "UPDATE SGR_T_Reserva SET fechareserva=?, Npersonas=?, idCliente=?, idEmpleado=?, idPolitica=?, idEstadoreserva=1 WHERE idReserva=?"
+                DatabaseManager.run_query(sql, (dt, pax, id_cli, id_emp, id_pol, self.id_reserva_seleccionada), commit=True)
+                DatabaseManager.run_query("DELETE FROM SGR_T_DetalleReserva WHERE idReserva=?", (self.id_reserva_seleccionada,), commit=True)
+                id_res = self.id_reserva_seleccionada
+                msg = "Reserva Actualizada"
+            else:
+                sql = """SET NOCOUNT ON; INSERT INTO SGR_T_Reserva (fechareserva, Npersonas, idCliente, idEmpleado, idEstadoreserva, idPolitica, idRestaurante)
+                         VALUES (?, ?, ?, ?, 1, ?, ?); SELECT SCOPE_IDENTITY();"""
+                id_res = DatabaseManager.run_query(sql, (dt, pax, id_cli, id_emp, id_pol, ID_RESTAURANTE_ACTUAL), commit=True)
+                msg = f"Reserva #{id_res} Creada"
 
-        for m_id in ids_mesas:
-            DatabaseManager.run_query("INSERT INTO SGR_T_DetalleReserva VALUES (?, ?, 0)", (id_res, m_id), commit=True)
+            # --- CORRECCIÓN AQUÍ: ESPECIFICAR COLUMNAS ---
+            for m_id in ids_mesas:
+                # Antes fallaba aquí porque no decíamos en qué columnas insertar
+                sql_detalle = "INSERT INTO SGR_T_DetalleReserva (idReserva, idMesa, Total) VALUES (?, ?, 0)"
+                DatabaseManager.run_query(sql_detalle, (id_res, m_id), commit=True)
 
-        messagebox.showinfo("Éxito", "Guardado correctamente")
-        self.form.limpiar()
-        self.monitor.cargar_datos()
+            messagebox.showinfo("Éxito", msg)
+            self.form.limpiar()
+            self.monitor.cargar_datos()
+            
+        except Exception as e:
+            messagebox.showerror("Error Crítico", f"No se pudo guardar: {e}")
 
     def cargar_edicion(self):
         if not self.id_reserva_seleccionada: return

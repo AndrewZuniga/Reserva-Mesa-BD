@@ -5,6 +5,43 @@ from config.settings import ID_RESTAURANTE_ACTUAL, COLOR_DISPONIBLE, COLOR_OCUPA
 class ReservaController:
     
     @staticmethod
+    def verificar_conflicto_mesas(fecha_hora, lista_ids_mesas, id_reserva_ignorar=None):
+        """
+        Revisa si alguna de las mesas seleccionadas ya tiene reserva en el rango de tiempo.
+        Retorna: Una lista con los NOMBRES de las mesas en conflicto, o None si todo está libre.
+        """
+        # Rango de tiempo (la misma lógica de 2 horas)
+        inicio = fecha_hora - timedelta(hours=1, minutes=59)
+        fin = fecha_hora + timedelta(hours=1, minutes=59)
+        
+        # Convertir lista de IDs a string para SQL (ej: "1, 2, 5")
+        ids_str = ",".join(map(str, lista_ids_mesas))
+        
+        sql = f"""
+        SELECT DISTINCT M.Nmesa
+        FROM SGR_T_DetalleReserva DR
+        JOIN SGR_T_Reserva R ON DR.idReserva = R.idReserva
+        JOIN SGR_M_Mesa M ON DR.idMesa = M.idMesa
+        WHERE R.idEstadoreserva IN (1, 2, 4)  -- Pendiente, Conf, Comp
+        AND DR.idMesa IN ({ids_str})          -- ¿Es alguna de las que quiero?
+        AND R.fechareserva BETWEEN ? AND ?    -- ¿Choca en hora?
+        """
+        
+        params = [inicio, fin]
+        
+        # Si editamos, no chocar con nosotros mismos
+        if id_reserva_ignorar:
+            sql += " AND R.idReserva != ?"
+            params.append(id_reserva_ignorar)
+            
+        conflictos = DatabaseManager.run_query(sql, tuple(params), fetchall=True)
+        
+        if conflictos:
+            # Retornamos los nombres de las mesas culpables (ej: ['M-06', 'VIP-01'])
+            return [row[0] for row in conflictos]
+        return None
+
+    @staticmethod
     def calcular_politica(n_personas, id_estado):
         if id_estado == 3: return 1 # Multa
         if n_personas > 10: return 2 # Evento

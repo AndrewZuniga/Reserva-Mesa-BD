@@ -24,15 +24,24 @@ class DatabaseManager:
         try:
             cursor.execute(query, params)
             
-            if commit:
+            # --- CORRECCIÓN CRÍTICA AQUÍ ---
+            if "SCOPE_IDENTITY" in query:
+                # 1. Si pedimos un ID nuevo, lo leemos ANTES de hacer commit
+                row = cursor.fetchone()
+                if row:
+                    result = int(row[0]) # Convertimos explícitamente a Entero
+                
+                # 2. Luego confirmamos la transacción
+                if commit: conn.commit()
+            
+            elif commit:
+                # Si es un INSERT/UPDATE/DELETE normal
                 conn.commit()
-                if "SCOPE_IDENTITY" in query:
-                    try: result = cursor.fetchone()[0]
-                    except: result = True
-                else:
-                    result = True
+                result = True
+            
             elif fetchone:
                 result = cursor.fetchone()
+            
             elif fetchall:
                 result = cursor.fetchall()
                 
