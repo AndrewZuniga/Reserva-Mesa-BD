@@ -81,11 +81,35 @@ class ReservaForm(tk.Frame):
         except: pass
 
     def guardar(self):
-        self.main_window.procesar_guardado(
-            self.combo_cliente.get(), self.spin_personas.get(), 
-            self.entry_fecha.get_date(), self.spin_hora.get(), self.spin_min.get(),
-            self.listbox_mesas.curselection(), self.combo_empleado.get()
+        # 1. Recolectar datos visuales para el mensaje
+        cli = self.combo_cliente.get()
+        pax = self.spin_personas.get()
+        fecha = self.entry_fecha.get_date()
+        hora = f"{self.spin_hora.get()}:{self.spin_min.get()}"
+        
+        # Obtener nombres de mesas seleccionadas
+        indices = self.listbox_mesas.curselection()
+        if not indices: return messagebox.showerror("Error", "Seleccione mesas")
+        mesas_txt = ", ".join([self.mesas_actuales[i]['texto'].split(" -")[0] for i in indices])
+
+        # 2. Ventana de Confirmación
+        mensaje = (
+            f"¿Está seguro de registrar esta reserva?\n\n"
+            f"👤 Cliente: {cli}\n"
+            f"📅 Fecha: {fecha} a las {hora}\n"
+            f"👥 Personas: {pax}\n"
+            f"🪑 Mesas: {mesas_txt}"
         )
+        
+        confirmacion = messagebox.askyesno("Confirmar Transacción", mensaje)
+        
+        if confirmacion:
+            # Si dice SÍ, procedemos a llamar al controlador principal
+            self.main_window.procesar_guardado(
+                self.combo_cliente.get(), self.spin_personas.get(), 
+                self.entry_fecha.get_date(), self.spin_hora.get(), self.spin_min.get(),
+                self.listbox_mesas.curselection(), self.combo_empleado.get()
+            )
 
     def limpiar(self):
         self.main_window.modo_edicion = False

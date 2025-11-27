@@ -115,3 +115,37 @@ class MainWindow:
         DatabaseManager.run_query(sql, (nuevo_estado, pol, self.id_reserva_seleccionada), commit=True)
         self.monitor.cargar_datos()
         self.form.verificar_disponibilidad()
+
+    # --- AGREGAR ESTO AL FINAL DE LA CLASE MainWindow ---
+    def eliminar_reserva_fisica(self):
+        if not self.id_reserva_seleccionada:
+            return messagebox.showwarning("Selección", "Seleccione una reserva para eliminar.")
+        
+        # Doble confirmación por seguridad
+        msg = "¿ESTÁ SEGURO?\n\nEsta acción eliminará la reserva permanentemente de la base de datos.\nUse esto solo para errores de digitación.\n\n¿Desea continuar?"
+        if not messagebox.askyesno("Eliminar Registro", msg, icon='warning'):
+            return
+
+        # Ejecución SQL
+        try:
+            # 1. Borrar Detalles (Hijos)
+            sql_det = "DELETE FROM SGR_T_DetalleReserva WHERE idReserva = ?"
+            DatabaseManager.run_query(sql_det, (self.id_reserva_seleccionada,), commit=True)
+            
+            # 2. Borrar Pagos (Si hubiera, para evitar error de FK)
+            sql_pag = "DELETE FROM SGR_T_Pago WHERE idReserva = ?"
+            DatabaseManager.run_query(sql_pag, (self.id_reserva_seleccionada,), commit=True)
+
+            # 3. Borrar Cabecera (Padre)
+            sql_cab = "DELETE FROM SGR_T_Reserva WHERE idReserva = ?"
+            DatabaseManager.run_query(sql_cab, (self.id_reserva_seleccionada,), commit=True)
+            
+            messagebox.showinfo("Eliminado", "El registro ha sido borrado exitosamente.")
+            
+            # Refrescar interfaz
+            self.id_reserva_seleccionada = None
+            self.monitor.cargar_datos()
+            self.form.verificar_disponibilidad() # Liberar mesas visualmente
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo eliminar: {e}")

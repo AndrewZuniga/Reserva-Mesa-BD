@@ -28,6 +28,7 @@ class ReservaMonitor(tk.Frame):
         tk.Button(f_btn, text="✅ Asistencia", bg="#28a745", fg="white", command=lambda: self.main_window.cambiar_estado(4)).pack(side=tk.LEFT, padx=2)
         tk.Button(f_btn, text="❌ Cancelar", bg="#dc3545", fg="white", command=lambda: self.main_window.cambiar_estado(3)).pack(side=tk.LEFT, padx=2)
 
+        tk.Button(f_btn, text="🗑 Eliminar", bg="#343a40", fg="white", command=self.main_window.eliminar_reserva_fisica).pack(side=tk.RIGHT, padx=5)
     def cargar_datos(self):
         for i in self.tree.get_children(): self.tree.delete(i)
         # NOMBRES NUEVOS EN QUERY
